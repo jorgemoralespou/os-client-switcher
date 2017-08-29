@@ -1,0 +1,68 @@
+#!/bin/bash
+#
+# This script sets up the appropriate links to change between different OpenShift client versions
+# OpenShift can be Origin or OpenShift Enterprise
+# The script expects to have symlinks in /usr/local/bin to a local bootstrap folder for the binaries
+# In the bootstrap folder, there will be also symlinks to the actual correct binary. 
+# This is done like this so there is no need to run this script as root on a regular basis.
+# Folder structure will be:
+#  ./
+#    ose-3.1.0/oc
+#    ose-3.2.0/oc
+#    ...
+#    origin-1.2.0/oc
+#    origin-1.3.0/oc
+#    ...
+#    bootstrap/oc 
+#
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+function usage(){
+   echo "Set links in /usr/local/bin for OpenShift (Enterprise or Origin)."
+   echo ""
+   echo "Usage:"
+   echo "  $0 ocp|ose|origin version"
+   echo ""
+   echo "Examples:"
+   echo "   $0 ocp 3.2.0"
+   echo "   $0 origin 1.3.0"
+}
+
+# Sets links to client binaries
+#
+# Args:
+#   $1: version
+#
+#
+function install-client(){
+   echo "Setting up OpenShift Client $1"
+   
+   local _version="$1"
+   [ ! -d "${DIR}/$_version" ] && echo "Directory for client (${_version}) does not exist in $DIR" && exit 10
+   
+   for exe in oc
+   do 
+      rm ${DIR}/bootstrap/${exe}
+      ln -s ${DIR}/${_version}/oc ${DIR}/bootstrap/${exe} 
+      echo "Link for $exe $_version created"
+   done
+   # Install bash_completions
+   ${DIR}/bootstrap/oc completion bash > ${DIR}/bash_completions/oc_bash_completion
+   source /usr/local/etc/bash_completion.d/oc_bash_completion
+   echo "Bash completions installed"
+}
+
+[ "$1" == "-?" ] && usage && exit 1
+[ $# -ne 2 ] && usage && exit 1
+
+
+# Check pre-requisites.
+[ ! -d ${DIR}/bootstrap ] && mkdir -p $DIR/bootstrap && echo "Created bootstrap dir at $DIR/bootstrap"
+[ ! -f ${DIR}/bootstrap/oc ] && touch $DIR/bootstrap/oc && echo "Created bootstrap oc"
+
+[ ! -L /usr/local/bin/oc ] && echo "You must: sudo ln -s ${DIR}/bootstrap/oc /usr/local/bin/oc" && exit 2
+[ ! -L /usr/local/etc/bash_completion.d/oc_bash_completion ] && echo "You must: sudo ln -s ${DIR}/bash_completions/oc_bash_completion /usr/local/etc/bash_completion.d/oc_bash_completion" && exit 2
+
+[ ! -d "$DIR/$1-$2" ] && echo "There's no client for $1-$2" && usage && exit 3
+install-client "$1-$2"
